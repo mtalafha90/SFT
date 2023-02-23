@@ -1,2 +1,2 @@
 # SFT
-Surface dlux transport model
+Surface Flux transport model
