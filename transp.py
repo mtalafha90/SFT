@@ -187,13 +187,13 @@ def source(latitude,t):
     #    outtable.write(printout1)
     #outtable.closed    
     #print joynorm
-    ###########################################################
+    ####################Meridional flow perturbations#######################################
     v00=5
     v00*=8.64e-2
     lambdac=5
     deltalambdav=15
     amplifac=(sourcescale-sourcescale1)/sourcescale1 
-    deltauc= 0.5*v00*np.sin(np.pi*((latitude-lambdac)/deltalambdav))
+    deltauc= amplifac*v00*np.sin(np.pi*((latitude-lambdac)/deltalambdav))
     #print deltauc
 #===============================================================================================
 # Modified by Talafha Oct. 2019
@@ -276,7 +276,7 @@ for n in range(nt):  #loop for values of n from 0 to nt, so it will run nt times
     # Wflux =  Wfladv + Wfldif
     Wfladv = W/Rsun
     #############################################################
-    Wfladv*=uc+ deltauc
+    Wfladv*=uc+ deltauc #added deltauc as perturbations
     # use upwind differencing for advective term:
     #Wflupw = uproll(Wfladv)
     #dWflux = hemi*(Wfladv-Wflupw)
