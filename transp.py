@@ -5,6 +5,7 @@ import sys
 import numpy as np
 #import scipy as sp
 import matplotlib.pyplot as plt
+plt.switch_backend('agg')
 #import sympy as sm
 import scipy.special as special
 # generate random floating point values
@@ -40,7 +41,6 @@ tres0=tres
 #nout=188                           # plot at every nout-th time step 
 
 Rsun = 695.7                        # solar radius 
-
 theta=np.linspace( 0, np.pi, N )    # x = theta: colatitude in radian
 latitude=90.0-theta*180/np.pi       # latitude in degrees
 hemi=np.sign(latitude)              # +1 in N, -1 in S, 0 on eq.
@@ -74,7 +74,7 @@ if flowtype==1:
 # Jiang 2014:  u0=11  eta=250  tau=infty
 if flowtype==2:
     latitude0 = 75.0
-    uc = u0*np.sin(np.pi*latitude/latitude0)
+    uc = u0*np.sin(2.4*latitude*np.pi/180)
     uc[np.where(abs(latitude) > latitude0)]=0
 
 # (3) Lemerle et al. 2017
@@ -109,13 +109,16 @@ datafilename='params' + str(flowtype) + '.dat'
 #outfilename = 'tr_' + str(sys.argv[1]) + '_' + str(sys.argv[2]) + '_'  + str(sys.argv[3]) +'.idt'
 #print "Output will be written to  ", outfilename
 
+ti_ar=[0] #define array to collect the end time of the cycle
 
 ################ Define source ##############################
 joynorar=[]
 amplar=[]
 time_amp=[]
+cyclenum=1
+deltauc0=np.zeros(len(uc))
 def source(latitude,t):
-    global ampli,sourcescale1,tc,amplar,joynorar,sourcescale,lambda0,deltauc,amplifac
+    global ampli,sourcescale1,tc,amplar,joynorar,sourcescale,lambda0,deltauc,amplifac,uc
     # Time profile of source: set constant factor arbitrarily so B_max ~ 15 G
     # (a) simple sin^2: 
     #ampli = 10.0 * (np.sin(((t/cycleper)%1)*np.pi))**2  
@@ -144,13 +147,6 @@ def source(latitude,t):
     ampli = sourcescale *(ahat * tc**3 / (np.exp(tc**2/bhat**2) - chat))
     amplar.append(ampli)
     time_amp.append(t)
-    #printout = str(t) + '\t' + str(ampli) +'\n'
-    #with open(ampfile, 'a') as outtable:
-    #    outtable.write(printout)
-    #outtable.closed
-        #######################################################################added to print out ampliude
-        #print ampli
-        #print t*dt/cycleper
     #######################################################################
     # Latitudinal profile as in Cameron et al. 2007:
     cycleno = int(t // cycleper) + 1
@@ -188,18 +184,30 @@ def source(latitude,t):
     #outtable.closed    
     #print joynorm
     ###########################################################
-    v00=5
+    v00=float(sys.argv[7])
     v00*=8.64e-2
-    lambdac=15
-    deltalambdav=15
-    deltauc0=v00*np.sin(np.pi*((latitude-lambdac)/deltalambdav))
+    lambda_c_0=15*np.pi/180
+    deltalambdav=15*np.pi/180
+    if ((t%4018.0)==0):#define the end time of the cycle
+        ti=t/365.25
+        ti_ar.append(ti)
+    lambdac=((lambda_c_0-(lambda_c_0-(8*np.pi/180))*(t/365.25-ti_ar[-1])/13))
+    latitude0 = 75.0
+    uc = u0*np.sin(2.4*latitude*np.pi/180)
+    uc[np.where(abs(latitude) > latitude0)]=0
     deltauc=deltauc0
+    deltauc1= v00*np.sin(np.pi*(latitude*np.pi/180-lambdac)/deltalambdav)
+    deltauc1[np.where(np.pi*((latitude*(np.pi/180)-lambdac)/deltalambdav) >= 180*np.pi/180)]=0
+    deltauc1[np.where(np.pi*((latitude*(np.pi/180)-lambdac)/deltalambdav) < -180*np.pi/180)]=0
+    deltauc2= v00*np.sin(np.pi*((latitude*np.pi/180-(-1*lambdac))/deltalambdav))
+    deltauc2[np.where(np.pi*((latitude*(np.pi/180)-(-1*lambdac))/deltalambdav) >= 180*np.pi/180)]=0
+    deltauc2[np.where(np.pi*((latitude*(np.pi/180)-(-1*lambdac))/deltalambdav) < -180*np.pi/180)]=0
     if (tc>0):
         ampli0 = sourcescale1 * ahat * tc**3 / (np.exp(tc**2/bhat**2) - chat)
-        amplifac=(ampli-ampli0/ampli0)
-        deltauc= amplifac*v00*np.sin(np.pi*((latitude-lambdac)/deltalambdav))
-    #print deltauc
-#===============================================================================================
+        amplifac1=(ampli-ampli0/ampli0)
+        deltauc=amplifac1*(deltauc1+deltauc2)
+        uc+=deltauc    
+    #===============================================================================================
 # Modified by Talafha Oct. 2019
     lambdanegn=latitude-lambda0-joynorm*np.sin(lambda0/180*np.pi)
     lambdaposn=latitude-lambda0+joynorm*np.sin(lambda0/180*np.pi)
@@ -242,7 +250,6 @@ t=0.0
 B0=0.001
 B=B0*np.sin(np.pi*latitude/180)
 B=B0*np.zeros(N)
-inflow=np.zeros(N)
 #B=B0*np.ones(N)
 W = Rsun * np.sin(theta) * B   # W: annular flux density
 
@@ -271,7 +278,6 @@ def uproll(blk):
 ###############################################################################
 Bcyc=[]
 #olddip=0
-cyclenum=1
 #with open(outfilename, 'w') as ofile:
 for n in range(nt):  #loop for values of n from 0 to nt, so it will run nt times
     t=n*dt
@@ -279,7 +285,19 @@ for n in range(nt):  #loop for values of n from 0 to nt, so it will run nt times
     # Wflux =  Wfladv + Wfldif
     Wfladv = W/Rsun
     #############################################################
-    Wfladv*=uc+ deltauc
+    Wfladv*=uc
+    '''
+    plt.ion()
+    fig0=plt.figure()
+    ax=fig0.add_subplot(111)#, projection='3d')
+    #plt.plot(latitude,uc, label='MF')
+    plt.plot(latitude, uc/8.64e-2, label='flow')
+    plotfilename0 = 'plots_case' + str(flowtype) + '/perturb_' + str(sys.argv[1]) + '_' + str(sys.argv[2]) + '_'  + str(sys.argv[3]) +'_'+ str(cyclenum) +'_' +str(sys.argv[5])+'_'+str(sys.argv[6])+'.png'
+    plt.legend()
+    plt.savefig(plotfilename0)
+    plt.show()
+    plt.close()
+    '''
     # use upwind differencing for advective term:
     #Wflupw = uproll(Wfladv)
     #dWflux = hemi*(Wfladv-Wflupw)
@@ -330,6 +348,8 @@ for n in range(nt):  #loop for values of n from 0 to nt, so it will run nt times
             #print len(final_dip)
             #olddip*=0
             #olddip=dipmom
+            ###################################################
+            ###################################################################            
             relWSOB=np.abs(WSOB[0])/np.max(WSOB)
             reldipmom=np.abs(dipmom[0])/np.max(dipmom)
             evenodd = 1 - 2*(int(sys.argv[1])%2) 
@@ -350,21 +370,10 @@ for n in range(nt):  #loop for values of n from 0 to nt, so it will run nt times
             final_dip=abs(enddip-dipcycmin*np.exp(-11/tau*365.25)) 
             #print final_dip
             #printout =  sys.argv[1] + '\t' + sys.argv[2] + '\t' + sys.argv[3] + '\t' + str(revBpol) + '\t' + str(revWSOB) + '\t' + str(revdipmom) + '\t'  + str(relWSOB) + '\t' + str(reldipmom) + '\t' + str(halfmaxcycmin) + '\t' + str(halfmaxnpolarb) + '\t' + str(halfmaxWSOB) + '\n'
-            printout =  str(maxamp) + '\t' + str(tmaxamp) + '\t' + str(absmaxdip) + '\t' + str(tabsmaxdip) + '\t' + str(absenddip) + '\t' + str(tabsenddip) + '\t'  + str(maxabsws) + '\t' + str(tmaxabsws) + '\t' + str(absendws) + '\t' + str(tabsendws) +'\t'+ str(enddip)+'\t'+str(joymaxampl)+'\t'+str(polarend)+'\t'+str(final_dip)+'\t'+sys.argv[1] + '\t' + sys.argv[2] + '\t' + sys.argv[3] +'\t'+sys.argv[5]+'\t'+sys.argv[6]+'\n' #changed
+            printout =  str(maxamp) + '\t' + str(tmaxamp) + '\t' + str(absmaxdip) + '\t' + str(tabsmaxdip) + '\t' + str(absenddip) + '\t' + str(tabsenddip) + '\t'  + str(maxabsws) + '\t' + str(tmaxabsws) + '\t' + str(absendws) + '\t' + str(tabsendws) +'\t'+ str(enddip)+'\t'+str(joymaxampl)+'\t'+str(polarend)+'\t'+str(final_dip)+'\t'+sys.argv[1] + '\t' + sys.argv[2] + '\t' + sys.argv[3] +'\t'+sys.argv[5]+'\t'+sys.argv[6]+ '\t'+ sys.argv[7]+'\n' #changed
             with open(datafilename, 'a') as outtable:
                 outtable.write(printout)
             outtable.closed
-            ################ Define inflow #####################
-            #absS=np.abs(S)
-            #sumF= np.sum(absS)
-            #v0=v00*np.arctan(sumF/f00)
-            #n=2
-            #sumflamb=np.sum(lambda0*np.array(S))
-            #lambdac= sumflamb/sumF
-            #sumlamb=np.sum((lambda0-lambdac)**2)
-            #deltalambda= 0.5*np.sqrt((1/n)*sumlamb)
-            #inflow= v0*np.sin(latitude-lambdac/deltalambda)
-            #print inflow
             tbmxB=tbmx[:,1:]
             MM = zip(*tbmxB)
             q = np.array(t)
