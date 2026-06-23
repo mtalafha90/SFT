@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sftmap"
+version = "0.1.0"
+description = "Observation-constrained iterative-map calibration via surface flux transport simulations"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Mohammed H. Talafha" }]
+keywords = ["solar cycle", "dynamo", "surface flux transport", "iterative map", "Babcock-Leighton"]
+dependencies = [
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "matplotlib>=3.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[project.scripts]
+sftmap-calibrate = "scripts.run_calibration:main"
+sftmap-map = "scripts.run_map_analysis:main"
+sftmap-go = "scripts.run_go_rule:main"
+sftmap-predict = "scripts.predict_cycle:main"
+
+[tool.setuptools]
+packages = ["sftmap"]
